@@ -1,20 +1,58 @@
 import 'package:flutter/material.dart';
-import 'accont_screen.dart';
+import 'signup_screen.dart';
+import 'services/auth_service.dart';
+import 'services/user_session.dart';
+import 'widgets/shared_widgets.dart';
 
-class AppColors {
-  static const navy = Color(0xFF00245A);
-  static const middleBlue = Color(0xFF2E4F8F);
-  static const lightBlue = Color(0xFF657CC0);
-  static const pink = Color(0xFFFF9BE0);
-  static const hotPink = Color(0xFFF05C9B);
-  static const whitePink = Color(0xFFFFF4FF);
-  static const palePurple = Color(0xFFD5CFE2);
-}
-
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
-  void showNoInternetDialog(BuildContext context) {
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _loading = false;
+
+  Future<void> _login() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) return;
+
+    setState(() => _loading = true);
+
+    try {
+      await AuthService.signIn(email: email, password: password);
+      await UserSession().loadProfile();
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/tasks');
+      }
+    } on AuthException catch (e) {
+      if (mounted) _showError(e.message);
+    } catch (e) {
+      if (mounted) {
+        if (e.toString().contains('SocketException') ||
+            e.toString().contains('network')) {
+          _showNoInternetDialog();
+        } else {
+          _showError(e.toString());
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  void _showNoInternetDialog() {
     showDialog(
       context: context,
       barrierColor: Colors.black.withOpacity(0.6),
@@ -27,10 +65,7 @@ class LoginScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.middleBlue,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: AppColors.lightBlue,
-                width: 5,
-              ),
+              border: Border.all(color: AppColors.lightBlue, width: 5),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -45,28 +80,18 @@ class LoginScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 22),
-                const Icon(
-                  Icons.public_off_rounded,
-                  color: AppColors.hotPink,
-                  size: 82,
-                ),
+                const Icon(Icons.public_off_rounded, color: AppColors.hotPink, size: 82),
                 const SizedBox(height: 22),
                 const Text(
                   'Please verify your Internet\nconnection then retry',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    height: 1.25,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 22, height: 1.25),
                 ),
                 const SizedBox(height: 26),
                 PinkButton(
                   text: 'Retry',
                   height: 60,
-                  onTap: () {
-                    Navigator.pop(context);
-                  },
+                  onTap: () => Navigator.pop(context),
                 ),
               ],
             ),
@@ -77,97 +102,107 @@ class LoginScreen extends StatelessWidget {
   }
 
   @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AuthScaffold(
-      child: Column(
-        children: [
-          const SizedBox(height: 48),
-          const AppLogo(size: 190),
-          const SizedBox(height: 24),
-          const Text(
-            'Log in',
-            style: TextStyle(
-              color: AppColors.pink,
-              fontSize: 54,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 68),
-          const AuthInput(
-            label: 'Email',
-            hint: 'Please enter your email',
-            icon: Icons.mail_outline_rounded,
-          ),
-          const SizedBox(height: 34),
-          const AuthInput(
-            label: 'Password',
-            hint: 'Please enter your password',
-            icon: Icons.lock_outline_rounded,
-            obscure: true,
-          ),
-          const SizedBox(height: 105),
-          PinkButton(
-            text: 'Sign up',
-            onTap: () {
-              showNoInternetDialog(context);
-            },
-          ),
-          const SizedBox(height: 24),
-          Wrap(
-            alignment: WrapAlignment.center,
-            children: [
-              const Text(
-                'You don’t have account ? ',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 30),
+        child: Column(
+          children: [
+            const Spacer(flex: 2),
+            const AppLogo(size: 140),
+            const SizedBox(height: 12),
+            const Text(
+              'Log in',
+              style: TextStyle(
+                color: AppColors.pink,
+                fontSize: 48,
+                fontWeight: FontWeight.w900,
               ),
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const AccountScreen(),
-                    ),
-                  );
-                },
-                child: const Text(
-                  'Create account',
+            ),
+            const Spacer(flex: 2),
+            AuthInput(
+              label: 'Email',
+              hint: 'Please enter your email',
+              icon: Icons.mail_outline_rounded,
+              controller: _emailController,
+            ),
+            const SizedBox(height: 18),
+            AuthInput(
+              label: 'Password',
+              hint: 'Please enter your password',
+              icon: Icons.lock_outline_rounded,
+              obscure: true,
+              controller: _passwordController,
+            ),
+            const Spacer(flex: 3),
+            _loading
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: CircularProgressIndicator(color: AppColors.pink),
+                  )
+                : PinkButton(text: 'Log in', onTap: _login, height: 70),
+            const SizedBox(height: 14),
+            Wrap(
+              alignment: WrapAlignment.center,
+              children: [
+                const Text(
+                  "You don't have account ? ",
                   style: TextStyle(
-                    color: AppColors.hotPink,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 50),
-        ],
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SignupScreen()),
+                    );
+                  },
+                  child: const Text(
+                    'Create account',
+                    style: TextStyle(
+                      color: AppColors.hotPink,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(flex: 1),
+          ],
+        ),
       ),
     );
   }
 }
 
+// ============================================
+// Shared Auth Widgets
+// ============================================
+
 class AuthScaffold extends StatelessWidget {
   final Widget child;
 
-  const AuthScaffold({
-    super.key,
-    required this.child,
-  });
+  const AuthScaffold({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.navy,
+      resizeToAvoidBottomInset: false,
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: 430,
-          ),
+          constraints: const BoxConstraints(maxWidth: 430),
           child: Stack(
             children: [
               Positioned(
@@ -194,14 +229,7 @@ class AuthScaffold extends StatelessWidget {
                   ),
                 ),
               ),
-              SafeArea(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 30),
-                    child: child,
-                  ),
-                ),
-              ),
+              SafeArea(child: child),
             ],
           ),
         ),
@@ -215,6 +243,7 @@ class AuthInput extends StatelessWidget {
   final String hint;
   final IconData icon;
   final bool obscure;
+  final TextEditingController? controller;
 
   const AuthInput({
     super.key,
@@ -222,6 +251,7 @@ class AuthInput extends StatelessWidget {
     required this.hint,
     required this.icon,
     this.obscure = false,
+    this.controller,
   });
 
   @override
@@ -235,46 +265,40 @@ class AuthInput extends StatelessWidget {
             label,
             style: const TextStyle(
               color: AppColors.pink,
-              fontSize: 28,
+              fontSize: 24,
               fontWeight: FontWeight.w900,
             ),
           ),
         ),
         Container(
-          height: 78,
+          height: 64,
           decoration: BoxDecoration(
             color: AppColors.whitePink,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppColors.palePurple,
-              width: 5,
-            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.palePurple, width: 4),
           ),
           child: TextField(
+            controller: controller,
             obscureText: obscure,
             style: const TextStyle(
               color: AppColors.navy,
-              fontSize: 22,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
             decoration: InputDecoration(
+              isDense: true,
               border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 18),
               prefixIcon: Padding(
-                padding: const EdgeInsets.only(left: 16, right: 10),
-                child: Icon(
-                  icon,
-                  color: AppColors.palePurple,
-                  size: 42,
-                ),
+                padding: const EdgeInsets.only(left: 14, right: 8),
+                child: Icon(icon, color: AppColors.palePurple, size: 32),
               ),
-              prefixIconConstraints: const BoxConstraints(
-                minWidth: 86,
-              ),
+              prefixIconConstraints: const BoxConstraints(minWidth: 56),
               hintText: hint,
               hintStyle: const TextStyle(
                 color: AppColors.palePurple,
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -293,7 +317,7 @@ class PinkButton extends StatelessWidget {
     super.key,
     required this.text,
     required this.onTap,
-    this.height = 82,
+    this.height = 70,
   });
 
   @override
@@ -305,16 +329,13 @@ class PinkButton extends StatelessWidget {
         width: double.infinity,
         decoration: BoxDecoration(
           color: AppColors.pink,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AppColors.hotPink,
-            width: 7,
-          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.hotPink, width: 6),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.32),
-              offset: const Offset(0, 7),
-              blurRadius: 7,
+              offset: const Offset(0, 6),
+              blurRadius: 6,
             ),
           ],
         ),
@@ -323,7 +344,7 @@ class PinkButton extends StatelessWidget {
             text,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 28,
+              fontSize: 24,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -336,166 +357,15 @@ class PinkButton extends StatelessWidget {
 class AppLogo extends StatelessWidget {
   final double size;
 
-  const AppLogo({
-    super.key,
-    required this.size,
-  });
+  const AppLogo({super.key, required this.size});
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size),
-      painter: LogoPainter(),
+    return Image.asset(
+      'assets/images/image.png',
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
     );
   }
-}
-
-class LogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final pinkStroke = Paint()
-      ..color = AppColors.hotPink
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.075
-      ..strokeCap = StrokeCap.round;
-
-    final pinkFill = Paint()
-      ..color = AppColors.pink
-      ..style = PaintingStyle.fill;
-
-    final whiteFill = Paint()
-      ..color = AppColors.whitePink
-      ..style = PaintingStyle.fill;
-
-    final grayFill = Paint()
-      ..color = AppColors.palePurple
-      ..style = PaintingStyle.fill;
-
-    final navyStroke = Paint()
-      ..color = AppColors.navy
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.018
-      ..strokeCap = StrokeCap.round;
-
-    final center = Offset(size.width / 2, size.height / 2);
-
-    canvas.drawArc(
-      Rect.fromCircle(
-        center: center,
-        radius: size.width * 0.42,
-      ),
-      2.0,
-      4.75,
-      false,
-      pinkStroke,
-    );
-
-    canvas.drawCircle(
-      Offset(size.width * 0.76, size.height * 0.18),
-      size.width * 0.07,
-      pinkFill,
-    );
-
-    final leftHill = Path()
-      ..moveTo(size.width * 0.12, size.height * 0.68)
-      ..quadraticBezierTo(
-        size.width * 0.30,
-        size.height * 0.55,
-        size.width * 0.54,
-        size.height * 0.72,
-      )
-      ..lineTo(size.width * 0.12, size.height * 0.72)
-      ..close();
-
-    final rightHill = Path()
-      ..moveTo(size.width * 0.38, size.height * 0.72)
-      ..quadraticBezierTo(
-        size.width * 0.62,
-        size.height * 0.55,
-        size.width * 0.88,
-        size.height * 0.70,
-      )
-      ..lineTo(size.width * 0.88, size.height * 0.72)
-      ..close();
-
-    canvas.drawPath(leftHill, whiteFill);
-    canvas.drawPath(rightHill, grayFill);
-
-    final stem = Path()
-      ..moveTo(size.width * 0.47, size.height * 0.70)
-      ..cubicTo(
-        size.width * 0.48,
-        size.height * 0.52,
-        size.width * 0.56,
-        size.height * 0.40,
-        size.width * 0.72,
-        size.height * 0.29,
-      );
-
-    canvas.drawPath(
-      stem,
-      Paint()
-        ..color = AppColors.pink
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = size.width * 0.04
-        ..strokeCap = StrokeCap.round,
-    );
-
-    final bigLeaf = Path()
-      ..moveTo(size.width * 0.48, size.height * 0.53)
-      ..cubicTo(
-        size.width * 0.56,
-        size.height * 0.25,
-        size.width * 0.82,
-        size.height * 0.25,
-        size.width * 0.76,
-        size.height * 0.40,
-      )
-      ..cubicTo(
-        size.width * 0.69,
-        size.height * 0.60,
-        size.width * 0.53,
-        size.height * 0.56,
-        size.width * 0.48,
-        size.height * 0.53,
-      );
-
-    canvas.drawPath(bigLeaf, pinkFill);
-
-    final smallLeaf = Path()
-      ..moveTo(size.width * 0.40, size.height * 0.52)
-      ..cubicTo(
-        size.width * 0.22,
-        size.height * 0.47,
-        size.width * 0.24,
-        size.height * 0.35,
-        size.width * 0.27,
-        size.height * 0.36,
-      )
-      ..cubicTo(
-        size.width * 0.42,
-        size.height * 0.37,
-        size.width * 0.46,
-        size.height * 0.48,
-        size.width * 0.40,
-        size.height * 0.52,
-      );
-
-    canvas.drawPath(smallLeaf, pinkFill);
-
-    canvas.drawLine(
-      Offset(size.width * 0.58, size.height * 0.48),
-      Offset(size.width * 0.72, size.height * 0.34),
-      navyStroke,
-    );
-
-    canvas.drawLine(
-      Offset(size.width * 0.39, size.height * 0.48),
-      Offset(size.width * 0.30, size.height * 0.42),
-      navyStroke,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

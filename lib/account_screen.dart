@@ -1,94 +1,209 @@
 import 'package:flutter/material.dart';
+import 'services/api_service.dart';
+import 'services/auth_service.dart';
+import 'services/user_session.dart';
+import 'widgets/shared_widgets.dart';
 
-class AccountScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key});
+
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Color(0xFF1A237E),
-      body: SafeArea(
-        child: SingleChildScrollView(
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  Future<void> _refreshProfile() async {
+    try {
+      await UserSession().loadProfile();
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
+
+  Future<void> _defineHomePosition() async {
+    final latController = TextEditingController();
+    final lonController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: AppColors.indigoDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              _buildScoreBar(context),
-              SizedBox(height: 24),
-              _buildProfileCard(context),
-              SizedBox(height: 16),
+              const Text(
+                'Define home position',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: latController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Latitude',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white24),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: lonController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Longitude',
+                  labelStyle: TextStyle(color: Colors.white70),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white24),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white24,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    child: const Text('Cancel', style: TextStyle(color: Colors.white)),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.pinkAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    child: const Text(
+                      'Confirm',
+                      style: TextStyle(color: AppColors.indigo, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(context),
     );
+
+    if (result == true) {
+      final lat = double.tryParse(latController.text);
+      final lon = double.tryParse(lonController.text);
+      if (lat != null && lon != null) {
+        try {
+          await ApiService.updateHomePosition(latitude: lat, longitude: lon);
+          await _refreshProfile();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Home position updated'), backgroundColor: Colors.green),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+            );
+          }
+        }
+      }
+    }
   }
 
-  Widget _buildScoreBar(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: Color(0xFF283593),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/account'),
-            child: CircleAvatar(
-              radius: 28,
-              backgroundColor: Colors.white,
-              child: Icon(Icons.person, color: Color(0xFF283593), size: 28),
-            ),
+  Future<void> _logout() async {
+    await AuthService.signOut();
+    UserSession().clear();
+    if (mounted) {
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    }
+  }
+
+  String _formatDate(String? isoDate) {
+    if (isoDate == null) return 'N/A';
+    try {
+      final dt = DateTime.parse(isoDate);
+      return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+    } catch (_) {
+      return isoDate;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = UserSession();
+
+    return Scaffold(
+      backgroundColor: AppColors.indigo,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              ScoreBar(
+                score: session.score,
+                streak: session.streak,
+                avatarUrl: session.avatarUrl,
+              ),
+              const SizedBox(height: 24),
+              _buildProfileCard(session),
+              const SizedBox(height: 16),
+            ],
           ),
-          SizedBox(width: 12),
-          Text(
-            '9.999.999 points',
-            style: TextStyle(
-              color: Color(0xFFFF80AB),
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Spacer(),
-          Icon(Icons.local_fire_department, color: Colors.orange),
-          Text(
-            '25',
-            style: TextStyle(
-              color: Colors.orange,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+        ),
       ),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/profile'),
     );
   }
 
-  Widget _buildProfileCard(BuildContext context) {
+  Widget _buildProfileCard(UserSession session) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 20),
-      padding: EdgeInsets.all(24),
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Color(0xFF283593),
+        color: AppColors.indigoDark,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(radius: 70, backgroundColor: Color(0xFFBDBDBD)),
-          SizedBox(height: 16),
-          _buildButton('Change avatar', () {}),
-          SizedBox(height: 24),
-          _buildInfoRow('Your name', 'Franclupin'),
-          _buildInfoRow('Number of badges', '0'),
-          _buildInfoRow('Inscription', '04/05/2026'),
-          _buildInfoRow('Home position', 'Defined'),
-          SizedBox(height: 24),
-          _buildButton('Define home position', () {}),
-          SizedBox(height: 12),
-          _buildButton('Disconnect', () {
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/login',
-              (route) => false,
-            );
-          }, color: Color(0xFFFF80AB).withOpacity(0.7)),
-          SizedBox(height: 12),
+          CircleAvatar(
+            radius: 70,
+            backgroundColor: const Color(0xFFBDBDBD),
+            backgroundImage:
+                session.avatarUrl != null ? NetworkImage(session.avatarUrl!) : null,
+            child: session.avatarUrl == null
+                ? const Icon(Icons.person, size: 60, color: Colors.white)
+                : null,
+          ),
+          const SizedBox(height: 16),
+          _buildButton('Change avatar', () {
+            // TODO: implement avatar picker
+          }),
+          const SizedBox(height: 24),
+          _buildInfoRow('Your name', session.nickname),
+          _buildInfoRow('Total steps', session.totalSteps.toString()),
+          _buildInfoRow('Inscription', _formatDate(session.dateCreation)),
+          _buildInfoRow('Home position', session.hasHome ? 'Defined' : 'Not defined'),
+          const SizedBox(height: 24),
+          _buildButton('Define home position', _defineHomePosition),
+          const SizedBox(height: 12),
+          _buildButton('Disconnect', _logout,
+              color: AppColors.pinkAccent.withOpacity(0.7)),
+          const SizedBox(height: 12),
         ],
       ),
     );
@@ -96,17 +211,17 @@ class AccountScreen extends StatelessWidget {
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             '$label : ',
-            style: TextStyle(color: Colors.white70, fontSize: 16),
+            style: const TextStyle(color: Colors.white70, fontSize: 16),
           ),
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -120,7 +235,7 @@ class AccountScreen extends StatelessWidget {
   Widget _buildButton(
     String label,
     VoidCallback onTap, {
-    Color color = const Color(0xFFFF80AB),
+    Color color = AppColors.pinkAccent,
   }) {
     return SizedBox(
       width: double.infinity,
@@ -131,50 +246,17 @@ class AccountScreen extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
           ),
-          padding: EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 14),
           elevation: 4,
         ),
         child: Text(
           label,
-          style: TextStyle(
-            color: Color(0xFF1A237E),
+          style: const TextStyle(
+            color: AppColors.indigo,
             fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: Color(0xFF1A237E),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _navButton(context, Icons.emoji_events, '/ranking'),
-          _navButton(context, Icons.home, '/tasks'),
-          _navButton(context, Icons.list, '/home'),
-        ],
-      ),
-    );
-  }
-
-  Widget _navButton(BuildContext context, IconData icon, String route) {
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, route),
-      child: Container(
-        width: 64,
-        height: 64,
-        decoration: BoxDecoration(
-          color: Color(0xFFFF80AB),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Color(0xFF1A237E), size: 30),
       ),
     );
   }

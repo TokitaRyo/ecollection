@@ -1,150 +1,269 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'main.dart';
-
-class Task {
-  final String name;
-  final String description;
-  final String difficulty;
-  final Color difficultyColor;
-  final int targetSteps;
-  final bool requiresLocation;
-  final String rewardImage;
-  int currentSteps;
-
-  Task({
-    required this.name,
-    required this.description,
-    required this.difficulty,
-    required this.difficultyColor,
-    required this.targetSteps,
-    required this.rewardImage,
-    this.requiresLocation = false,
-    this.currentSteps = 0,
-  });
-}
+import 'services/api_service.dart';
+import 'services/task_tracker.dart';
+import 'services/user_session.dart';
+import 'widgets/shared_widgets.dart';
 
 class TaskListScreen extends StatefulWidget {
+  const TaskListScreen({super.key});
+
   @override
   State<TaskListScreen> createState() => _TaskListScreenState();
 }
 
 class _TaskListScreenState extends State<TaskListScreen> {
-  bool _homePositionSet = false;
+  List<dynamic> _tasks = [];
+  List<dynamic> _activeTasks = [];
+  bool _loading = true;
 
-  final List<Task> tasks = [
-    Task(
-      name: 'Little walker',
-      description: 'Walk 3.000 steps in less than 24h.',
-      difficulty: 'Easy',
-      difficultyColor: Color(0xFF4CAF50),
-      targetSteps: 3000,
-      rewardImage: 'assets/badges/bird.png',
-    ),
-    Task(
-      name: 'Speedrunner',
-      description: 'Walk 2.000.000 in less than a month',
-      difficulty: 'Infernal',
-      difficultyColor: Color(0xFF7B1FA2),
-      targetSteps: 2000000,
-      rewardImage: 'assets/badges/ruby.png',
-    ),
-    Task(
-      name: 'Bannished',
-      description: 'Stay at least 30 km away from home.',
-      difficulty: 'Hard',
-      difficultyColor: Color(0xFFE53935),
-      targetSteps: 0,
-      requiresLocation: true,
-      rewardImage: 'assets/badges/dog.png',
-    ),
-    Task(
-      name: 'Climbing machine',
-      description: 'Reach 500m of altitude in less than 24h.',
-      difficulty: 'Medium',
-      difficultyColor: Color(0xFF00BCD4),
-      targetSteps: 500,
-      rewardImage: 'assets/badges/cat.png',
-    ),
-  ];
+  Timer? _ticker;
+  DateTime? _deadline;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (globalActiveTask != null) {
-        _showTaskPopup(context, globalActiveTask!);
-      }
+    TaskTracker.onTaskCompleted = _onTaskCompleted;
+    TaskTracker.onTaskAutoCancelled = _onTaskAutoCancelled;
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && _activeTasks.isNotEmpty) setState(() {});
     });
+    _loadData();
+  }
+
+  void _onTaskAutoCancelled() {
+    if (!mounted) return;
+    _loadData();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Mission annulée : déplacement trop rapide détecté (> 30 km/h)',
+        ),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 4),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    TaskTracker.onTaskCompleted = null;
+    TaskTracker.onTaskAutoCancelled = null;
+    super.dispose();
+  }
+
+  Duration? _parseDuration(String? s) {
+    if (s == null) return null;
+    final parts = s.split(':');
+    if (parts.length != 3) return null;
+    return Duration(
+      hours: int.tryParse(parts[0]) ?? 0,
+      minutes: int.tryParse(parts[1]) ?? 0,
+      seconds: int.tryParse(parts[2]) ?? 0,
+    );
+  }
+
+  String _formatDuration(Duration d) {
+    if (d.isNegative) d = Duration.zero;
+    final h = d.inHours.toString().padLeft(2, '0');
+    final m = (d.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$h : $m : $s';
+  }
+
+  void _onTaskCompleted() {
+    if (!mounted) return;
+    _loadData();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Mission complétée !'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  Future<void> _loadData() async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+    try {
+      final results = await Future.wait([
+        ApiService.getTasks(),
+        ApiService.getActiveTasks(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _tasks = results[0];
+        _activeTasks = results[1];
+        _loading = false;
+      });
+
+      if (_activeTasks.isNotEmpty) {
+        final remaining = _parseDuration(_activeTasks.first['timeRemaining']);
+        _deadline = remaining != null ? DateTime.now().add(remaining) : null;
+        await TaskTracker.start(_activeTasks.first);
+      } else {
+        _deadline = null;
+        await TaskTracker.stop();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Color _difficultyColor(String difficulty) {
+    switch (difficulty) {
+      case 'Easy':
+        return const Color(0xFF4CAF50);
+      case 'Medium':
+        return const Color(0xFF00BCD4);
+      case 'Hard':
+        return const Color(0xFFE53935);
+      case 'Infernal':
+        return const Color(0xFF7B1FA2);
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Map<String, dynamic>? _getActiveInfo(String taskId) {
+    for (var active in _activeTasks) {
+      if (active['taskId'] == taskId) return active;
+    }
+    return null;
+  }
+
+  Future<void> _acceptTask(String taskId) async {
+    try {
+      await ApiService.acceptTask(taskId);
+      await _loadData();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _cancelTask(String taskId) async {
+    try {
+      await ApiService.cancelTask(taskId);
+      await _loadData();
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final session = UserSession();
+    final hasActiveTask = _activeTasks.isNotEmpty;
+
     return Scaffold(
-      backgroundColor: Color(0xFF1A237E),
+      backgroundColor: AppColors.indigo,
       body: SafeArea(
         child: Column(
           children: [
-            _buildScoreBar(context),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    'Finish tasks to increase your score',
-                    style: TextStyle(color: Colors.white60, fontSize: 13),
-                    textAlign: TextAlign.center,
-                  ),
-                  Text(
-                    'Please chose a task',
-                    style: TextStyle(
-                      color: Color(0xFFFF80AB),
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+            ScoreBar(
+              score: session.score,
+              streak: session.streak,
+              avatarUrl: session.avatarUrl,
             ),
             Expanded(
-              child: ListView.builder(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                itemCount: tasks.length,
-                itemBuilder: (context, index) {
-                  return _buildTaskCard(tasks[index]);
-                },
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                'Reset in : 5d',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
+              child: Stack(
+                children: [
+                  Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Column(
+                          children: [
+                            const Text(
+                              'Finish tasks to increase your score',
+                              style: TextStyle(color: Colors.white60, fontSize: 13),
+                              textAlign: TextAlign.center,
+                            ),
+                            const Text(
+                              'Please chose a task',
+                              style: TextStyle(
+                                color: AppColors.pinkAccent,
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: _loading
+                            ? const Center(
+                                child: CircularProgressIndicator(color: AppColors.pinkAccent),
+                              )
+                            : ListView.builder(
+                                physics: const NeverScrollableScrollPhysics(),
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: _tasks.length > 3 ? 3 : _tasks.length,
+                                itemBuilder: (context, index) {
+                                  return _buildTaskCard(_tasks[index]);
+                                },
+                              ),
+                      ),
+                      if (_tasks.isNotEmpty && _tasks.first['resetPeriodDays'] != null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            'Reset in : ${_tasks.first['resetPeriodDays']}d',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (hasActiveTask) ...[
+                    Positioned.fill(
+                      child: GestureDetector(
+                        onTap: () {},
+                        child: Container(color: Colors.black.withOpacity(0.65)),
+                      ),
+                    ),
+                    Center(child: _buildActiveTaskOverlay(_activeTasks.first)),
+                  ],
+                ],
               ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(context),
+      bottomNavigationBar: const AppBottomNav(currentRoute: '/tasks'),
     );
   }
 
-  Widget _buildTaskCard(Task task) {
-    final bool isLocked = task.requiresLocation && !_homePositionSet;
-    final bool isActive = globalActiveTask?.name == task.name;
+  Widget _buildTaskCard(Map<String, dynamic> task) {
+    final bool isLocked = task['locked'] ?? false;
+    final bool isInProgress = task['inProgress'] ?? false;
+    final activeInfo = _getActiveInfo(task['taskId']);
+    final String difficulty = task['difficulty'] ?? 'Easy';
 
     return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isLocked
-            ? Color(0xFF283593).withOpacity(0.5)
-            : Color(0xFF283593),
+            ? AppColors.indigoDark.withOpacity(0.5)
+            : AppColors.indigoDark,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white24, width: 1),
       ),
@@ -154,26 +273,28 @@ class _TaskListScreenState extends State<TaskListScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                task.name,
-                style: TextStyle(
-                  color: isLocked ? Colors.white38 : Colors.white70,
-                  fontSize: 18,
+              Expanded(
+                child: Text(
+                  task['name'] ?? '',
+                  style: TextStyle(
+                    color: isLocked ? Colors.white38 : Colors.white70,
+                    fontSize: 18,
+                  ),
                 ),
               ),
               Text(
-                task.difficulty,
+                difficulty,
                 style: TextStyle(
-                  color: task.difficultyColor,
+                  color: _difficultyColor(difficulty),
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
-            task.description,
+            task['description'] ?? '',
             style: TextStyle(
               color: isLocked ? Colors.white24 : Colors.white,
               fontWeight: FontWeight.bold,
@@ -181,74 +302,63 @@ class _TaskListScreenState extends State<TaskListScreen> {
             ),
           ),
           if (isLocked)
-            Padding(
+            const Padding(
               padding: EdgeInsets.symmetric(vertical: 4),
               child: Text(
                 'Please configure your home position to unlock this task',
                 style: TextStyle(
-                  color: Color(0xFFFF80AB),
+                  color: AppColors.pinkAccent,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
               ),
             ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Reward + バッジ画像
               Row(
                 children: [
-                  Text(
+                  const Text(
                     'Reward :',
                     style: TextStyle(
-                      color: Color(0xFFFF80AB),
+                      color: AppColors.pinkAccent,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(width: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.asset(
-                      task.rewardImage,
-                      width: 36,
-                      height: 36,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.none,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: Color(0xFFFF80AB),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
+                  const SizedBox(width: 8),
+                  if (task['rewards'] != null && (task['rewards'] as List).isNotEmpty)
+                    ...((task['rewards'] as List).take(3).map((r) => Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: _buildRewardImage(r['imageName']),
+                        ))),
                 ],
               ),
-              // Accept task ボタン
               ElevatedButton(
                 onPressed: isLocked
                     ? null
-                    : () => _showTaskPopup(context, task),
+                    : () {
+                        if (isInProgress) {
+                          _showActiveTaskPopup(context, task, activeInfo);
+                        } else {
+                          _showTaskPopup(context, task);
+                        }
+                      },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isActive
-                      ? Color(0xFFFF80AB).withOpacity(0.6)
+                  backgroundColor: isInProgress
+                      ? AppColors.pinkAccent.withOpacity(0.6)
                       : isLocked
-                      ? Color(0xFFFF80AB).withOpacity(0.4)
-                      : Color(0xFFFF80AB),
+                          ? AppColors.pinkAccent.withOpacity(0.4)
+                          : AppColors.pinkAccent,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 ),
                 child: Text(
-                  isActive ? 'In progress' : 'Accept task',
-                  style: TextStyle(
-                    color: Color(0xFF1A237E),
+                  isInProgress ? 'In progress' : 'Accept task',
+                  style: const TextStyle(
+                    color: AppColors.indigo,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -260,223 +370,396 @@ class _TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
-  void _showTaskPopup(BuildContext context, Task task) {
-    final navigatorContext = context;
-    showDialog(
-      context: context,
-      barrierColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          final bool isActive = globalActiveTask?.name == task.name;
-          final double progress = task.targetSteps > 0
-              ? task.currentSteps / task.targetSteps
-              : 0;
-          final int percent = (progress * 100).toInt();
+  Widget _buildActiveTaskOverlay(Map<String, dynamic> activeInfo) {
+    final String taskId = activeInfo['taskId'];
+    final int objective = activeInfo['objective'] ?? 1;
 
-          return Dialog(
-            backgroundColor: Color(0xFF283593),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+    // Progression live (depuis le tracker), fallback sur la valeur API
+    final int liveProgress =
+        TaskTracker.currentProgress(taskId) ?? (activeInfo['progress'] ?? 0);
+    final int progress =
+        liveProgress > objective ? objective : liveProgress;
+    final double progressRatio = objective > 0 ? progress / objective : 0;
+    final int percent = (progressRatio * 100).toInt();
+
+    // Timer live (calculé depuis _deadline)
+    final String? timeRemaining = _deadline != null
+        ? _formatDuration(_deadline!.difference(DateTime.now()))
+        : activeInfo['timeRemaining'];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Material(
+        color: AppColors.indigoDark,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                activeInfo['name'] ?? '',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                activeInfo['description'] ?? '',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Text(
+                  '$progress/$objective',
+                  style: const TextStyle(
+                    color: AppColors.pinkAccent,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Stack(
                 children: [
-                  Text(
-                    task.name,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
+                  Container(
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    task.description,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  FractionallySizedBox(
+                    widthFactor: progressRatio.clamp(0.0, 1.0),
+                    child: Container(
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4CAF50),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
-                  SizedBox(height: 12),
-                  Text(
-                    'Reward :',
-                    style: TextStyle(
-                      color: Color(0xFFFF80AB),
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                  Positioned(
+                    left: 8,
+                    top: 2,
+                    child: Text(
+                      '$percent%',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  SizedBox(height: 8),
-                  // ポップアップのバッジ画像
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(
-                      task.rewardImage,
-                      width: 60,
-                      height: 60,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.none,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 60,
-                          height: 60,
-                          decoration: BoxDecoration(
-                            color: Color(0xFFFF80AB),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  SizedBox(height: 16),
-
-                  if (isActive) ...[
-                    Center(
-                      child: Text(
-                        '${task.currentSteps}/${task.targetSteps}',
-                        style: TextStyle(
-                          color: Color(0xFFFF80AB),
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Stack(
-                      children: [
-                        Container(
-                          height: 20,
-                          decoration: BoxDecoration(
-                            color: Colors.white24,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        FractionallySizedBox(
-                          widthFactor: progress.clamp(0.0, 1.0),
-                          child: Container(
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: Color(0xFF4CAF50),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          left: 8,
-                          top: 2,
-                          child: Text(
-                            '$percent%',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    Center(
-                      child: Column(
-                        children: [
-                          Text(
-                            'Remaining time :',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            '18 : 13 : 03',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          Navigator.of(context).pop();
-                          await Future.delayed(Duration(milliseconds: 200));
-                          _showCancelConfirm(navigatorContext, task);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFFFF80AB),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          padding: EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: Text(
-                          'Cancel task',
-                          style: TextStyle(
-                            color: Color(0xFF1A237E),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-
-                  if (!isActive) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          setState(() => globalActiveTask = task);
-                          Navigator.of(context).pop();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFFFF80AB),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          padding: EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: Text(
-                          'Accept task',
-                          style: TextStyle(
-                            color: Color(0xFF1A237E),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
-            ),
-          );
-        },
+              if (timeRemaining != null) ...[
+                const SizedBox(height: 8),
+                Center(
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Remaining time :',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        timeRemaining,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => _showCancelConfirm(context, taskId),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.pinkAccent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text(
+                    'Cancel task',
+                    style: TextStyle(
+                      color: AppColors.indigo,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  void _showCancelConfirm(BuildContext context, Task task) {
+  Widget _buildRewardImage(String? imageName, {double size = 36}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: AppColors.pinkAccent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: imageName != null
+            ? Image.asset(
+                'assets/badges/$imageName',
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.none,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.image, color: Colors.white, size: 20),
+              )
+            : const Icon(Icons.image, color: Colors.white, size: 20),
+      ),
+    );
+  }
+
+  void _showTaskPopup(BuildContext context, Map<String, dynamic> task) {
     showDialog(
       context: context,
       barrierColor: Colors.transparent,
       builder: (_) => Dialog(
-        backgroundColor: Color(0xFF283593),
+        backgroundColor: AppColors.indigoDark,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                task['name'] ?? '',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                task['description'] ?? '',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Reward :',
+                style: TextStyle(
+                  color: AppColors.pinkAccent,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (task['rewards'] != null)
+                ...(task['rewards'] as List).take(3).map((r) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '${r['badgeName']} (${r['dropRate']}%)',
+                        style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                    )),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _acceptTask(task['taskId']);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.pinkAccent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text(
+                    'Accept task',
+                    style: TextStyle(
+                      color: AppColors.indigo,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showActiveTaskPopup(BuildContext context, Map<String, dynamic> task, Map<String, dynamic>? activeInfo) {
+    final int progress = activeInfo?['progress'] ?? 0;
+    final int objective = activeInfo?['objective'] ?? task['objective'] ?? 1;
+    final double progressRatio = objective > 0 ? progress / objective : 0;
+    final int percent = (progressRatio * 100).toInt();
+    final String? timeRemaining = activeInfo?['timeRemaining'];
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (_) => Dialog(
+        backgroundColor: AppColors.indigoDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                task['name'] ?? '',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                task['description'] ?? '',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Text(
+                  '$progress/$objective',
+                  style: const TextStyle(
+                    color: AppColors.pinkAccent,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Stack(
+                children: [
+                  Container(
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  FractionallySizedBox(
+                    widthFactor: progressRatio.clamp(0.0, 1.0),
+                    child: Container(
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4CAF50),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 8,
+                    top: 2,
+                    child: Text(
+                      '$percent%',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (timeRemaining != null) ...[
+                const SizedBox(height: 8),
+                Center(
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Remaining time :',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        timeRemaining,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _showCancelConfirm(context, task['taskId']);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.pinkAccent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text(
+                    'Cancel task',
+                    style: TextStyle(
+                      color: AppColors.indigo,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCancelConfirm(BuildContext context, String taskId) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (_) => Dialog(
+        backgroundColor: AppColors.indigoDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
+              const Text(
                 'Cancel the task ?',
                 style: TextStyle(
                   color: Colors.white,
@@ -485,57 +768,49 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 16),
-              Text(
+              const SizedBox(height: 16),
+              const Text(
                 'If you really want to cancel the task click on Confirm',
                 style: TextStyle(color: Colors.white70, fontSize: 15),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton(
                     onPressed: () {
-                      setState(() => globalActiveTask = null);
                       Navigator.of(context).pop();
+                      _cancelTask(taskId);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFFFF80AB),
+                      backgroundColor: AppColors.pinkAccent,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
-                    child: Text(
+                    child: const Text(
                       'Confirm',
                       style: TextStyle(
-                        color: Color(0xFF1A237E),
+                        color: AppColors.indigo,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                   ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
+                    onPressed: () => Navigator.of(context).pop(),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFFFF80AB),
+                      backgroundColor: AppColors.pinkAccent,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
-                    child: Text(
+                    child: const Text(
                       'Cancel',
                       style: TextStyle(
-                        color: Color(0xFF1A237E),
+                        color: AppColors.indigo,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -545,77 +820,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildScoreBar(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: Color(0xFF283593),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/account'),
-            child: CircleAvatar(
-              radius: 28,
-              backgroundColor: Colors.white,
-              child: Icon(Icons.person, color: Color(0xFF283593), size: 28),
-            ),
-          ),
-          SizedBox(width: 12),
-          Text(
-            '9.999.999 points',
-            style: TextStyle(
-              color: Color(0xFFFF80AB),
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Spacer(),
-          Icon(Icons.local_fire_department, color: Colors.orange),
-          Text(
-            '25',
-            style: TextStyle(
-              color: Colors.orange,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomNav(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: Color(0xFF1A237E),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _navButton(context, Icons.emoji_events, '/ranking'),
-          _navButton(context, Icons.home, '/tasks'),
-          _navButton(context, Icons.list, '/home'),
-        ],
-      ),
-    );
-  }
-
-  Widget _navButton(BuildContext context, IconData icon, String route) {
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, route),
-      child: Container(
-        width: 64,
-        height: 64,
-        decoration: BoxDecoration(
-          color: Color(0xFFFF80AB),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Color(0xFF1A237E), size: 30),
       ),
     );
   }
