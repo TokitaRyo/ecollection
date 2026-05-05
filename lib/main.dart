@@ -4,6 +4,9 @@ import 'tasklist_screen.dart';
 import 'ranking_screen.dart';
 import 'account_screen.dart';
 
+// グローバルな進行中タスク
+Task? globalActiveTask;
+
 void main() {
   runApp(const MyApp());
 }

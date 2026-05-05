@@ -5,43 +5,22 @@ class RankingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Color(0xFF1A237E),
-      body: Center(
-        child: Text(
-          'Ranking',
-          style: TextStyle(color: Colors.white, fontSize: 24),
-        ),
-      ),
-      bottomNavigationBar: Container(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: Color(0xFF1A237E),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      body: SafeArea(
+        child: Column(
           children: [
-            _navButton(context, Icons.emoji_events, '/ranking'),
-            _navButton(context, Icons.home, '/home'),
-            _navButton(context, Icons.list, '/tasks'),
-            _navButton(context, Icons.person, '/account'),
+            _buildScoreBar(context),
+            Expanded(
+              child: Center(
+                child: Text(
+                  'Ranking',
+                  style: TextStyle(color: Colors.white, fontSize: 24),
+                ),
+              ),
+            ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _navButton(BuildContext context, IconData icon, String route) {
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, route),
-      child: Container(
-        width: 64,
-        height: 64,
-        decoration: BoxDecoration(
-          color: Color(0xFFFF80AB),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Color(0xFF1A237E), size: 30),
-      ),
+      bottomNavigationBar: _buildBottomNav(context),
     );
   }
 
@@ -51,7 +30,6 @@ class RankingScreen extends StatelessWidget {
       color: Color(0xFF283593),
       child: Row(
         children: [
-          // ← タップでアカウント画面へ
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, '/account'),
             child: CircleAvatar(
@@ -80,6 +58,39 @@ class RankingScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBottomNav(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: Color(0xFF1A237E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _navButton(context, Icons.emoji_events, '/ranking'),
+          _navButton(context, Icons.home, '/tasks'),
+          _navButton(context, Icons.list, '/home'),
+        ],
+      ),
+    );
+  }
+
+  Widget _navButton(BuildContext context, IconData icon, String route) {
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, route),
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: Color(0xFFFF80AB),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Color(0xFF1A237E), size: 30),
       ),
     );
   }

@@ -46,7 +46,7 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
         condition: 'Walk 2,000,000 in less than a month',
         obtainedDate: '05/05/2026',
         rarityColor: Color(0xFFFFD700),
-        imagePath: 'assets/badges/special_1.png', // 画像未定
+        imagePath: 'assets/badges/special_1.png',
       ),
       BadgeItem(
         name: 'Badge S2',
@@ -55,7 +55,7 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
         condition: 'Complete all tasks in a week',
         obtainedDate: '05/05/2026',
         rarityColor: Color(0xFFFFD700),
-        imagePath: 'assets/badges/special_2.png', // 画像未定
+        imagePath: 'assets/badges/special_2.png',
       ),
     ],
     'Animal': [
@@ -194,7 +194,7 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: _buildBottomNav(context),
     );
   }
 
@@ -204,7 +204,6 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
       color: Color(0xFF283593),
       child: Row(
         children: [
-          // ← タップでアカウント画面へ
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, '/account'),
             child: CircleAvatar(
@@ -251,7 +250,6 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // バッジ画像
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.asset(
@@ -351,7 +349,6 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
   Widget _buildBadgeGrid() {
     return Column(
       children: [
-        // カテゴリ切り替えボタン
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -400,7 +397,6 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
           ],
         ),
         SizedBox(height: 8),
-        // バッジグリッド
         Expanded(
           child: GridView.builder(
             padding: EdgeInsets.symmetric(horizontal: 16),
@@ -442,7 +438,7 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
     );
   }
 
-  Widget _buildBottomNav() {
+  Widget _buildBottomNav(BuildContext context) {
     return Container(
       padding: EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
@@ -452,23 +448,17 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _navButton(Icons.emoji_events, () {
-            Navigator.pushNamed(context, '/ranking');
-          }),
-          _navButton(Icons.home, () {
-            Navigator.pushNamed(context, '/home');
-          }),
-          _navButton(Icons.list, () {
-            Navigator.pushNamed(context, '/tasks');
-          }),
+          _navButton(context, Icons.emoji_events, '/ranking'),
+          _navButton(context, Icons.home, '/tasks'),
+          _navButton(context, Icons.list, '/home'),
         ],
       ),
     );
   }
 
-  Widget _navButton(IconData icon, VoidCallback onTap) {
+  Widget _navButton(BuildContext context, IconData icon, String route) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () => Navigator.pushNamed(context, route),
       child: Container(
         width: 64,
         height: 64,

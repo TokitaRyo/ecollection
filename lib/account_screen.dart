@@ -157,9 +157,8 @@ class AccountScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _navButton(context, Icons.emoji_events, '/ranking'),
-          _navButton(context, Icons.home, '/home'),
-          _navButton(context, Icons.list, '/tasks'),
-          _navButton(context, Icons.person, '/account'),
+          _navButton(context, Icons.home, '/tasks'),
+          _navButton(context, Icons.list, '/home'),
         ],
       ),
     );
