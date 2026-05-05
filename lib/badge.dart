@@ -46,7 +46,7 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
         condition: 'Walk 2,000,000 in less than a month',
         obtainedDate: '05/05/2026',
         rarityColor: Color(0xFFFFD700),
-        imagePath: 'assets/badges/special_1.png',
+        imagePath: 'assets/badges/special1.jpg',
       ),
       BadgeItem(
         name: 'Badge S2',
@@ -55,7 +55,7 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
         condition: 'Complete all tasks in a week',
         obtainedDate: '05/05/2026',
         rarityColor: Color(0xFFFFD700),
-        imagePath: 'assets/badges/special_2.png',
+        imagePath: 'assets/badges/special2.jpg',
       ),
     ],
     'Animal': [
