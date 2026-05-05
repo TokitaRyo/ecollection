@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'badge.dart';
 import 'tasklist_screen.dart';
 import 'ranking_screen.dart';
+import 'account_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -20,6 +21,7 @@ class MyApp extends StatelessWidget {
         '/home': (context) => BadgeListScreen(),
         '/tasks': (context) => TaskListScreen(),
         '/ranking': (context) => RankingScreen(),
+        '/account': (context) => AccountScreen(),
       },
     );
   }

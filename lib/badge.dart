@@ -187,7 +187,7 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildScoreBar(),
+            _buildScoreBar(context),
             if (selected != null) _buildBadgeDetailCard(selected),
             SizedBox(height: 12),
             Expanded(child: _buildBadgeGrid()),
@@ -198,13 +198,21 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
     );
   }
 
-  Widget _buildScoreBar() {
+  Widget _buildScoreBar(BuildContext context) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: Color(0xFF283593),
       child: Row(
         children: [
-          CircleAvatar(radius: 28, backgroundColor: Colors.white),
+          // ← タップでアカウント画面へ
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, '/account'),
+            child: CircleAvatar(
+              radius: 28,
+              backgroundColor: Colors.white,
+              child: Icon(Icons.person, color: Color(0xFF283593), size: 28),
+            ),
+          ),
           SizedBox(width: 12),
           Text(
             '9.999.999 points',
