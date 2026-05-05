@@ -267,6 +267,7 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
   }
 
   // 下部ナビ
+  // 下部ナビ
   Widget _buildBottomNav() {
     return Container(
       padding: EdgeInsets.symmetric(vertical: 12),
@@ -277,15 +278,39 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _navButton(Icons.emoji_events),
-          _navButton(Icons.home),
-          _navButton(Icons.list),
+          // ランキング画面へ
+          _navButton(Icons.emoji_events, () {
+            Navigator.pushNamed(context, '/ranking');
+          }),
+          // ホーム画面へ
+          _navButton(Icons.home, () {
+            Navigator.pushNamed(context, '/home');
+          }),
+          // タスクリスト画面へ
+          _navButton(Icons.list, () {
+            Navigator.pushNamed(context, '/tasks');
+          }),
         ],
       ),
     );
   }
 
-  Widget _navButton(IconData icon) {
+  Widget _navButton(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(
+          color: Color(0xFFFF80AB),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Color(0xFF1A237E), size: 30),
+      ),
+    );
+  }
+
+  Widget _NavButton(IconData icon) {
     return Container(
       width: 64,
       height: 64,
