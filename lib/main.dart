@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'badge.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MaterialApp(home: BadgeListScreen()));
 }
 
 class MyApp extends StatelessWidget {
