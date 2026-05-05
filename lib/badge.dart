@@ -237,29 +237,95 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
         ),
         SizedBox(height: 8),
         Expanded(
-          child: GridView.builder(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-            ),
-            itemCount: badges.length,
-            itemBuilder: (context, index) {
-              return GestureDetector(
-                onTap: () => setState(() => _selectedIndex = index),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Color(0xFFFF80AB),
-                    borderRadius: BorderRadius.circular(16),
-                    border: _selectedIndex == index
-                        ? Border.all(color: Colors.white, width: 3)
-                        : null,
-                  ),
-                  // Image.asset('assets/badges/...') に変更可能
+          child: Stack(
+            children: [
+              // バッジグリッド
+              GridView.builder(
+                padding: EdgeInsets.symmetric(horizontal: 48),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
                 ),
-              );
-            },
+                itemCount: badges.length,
+                itemBuilder: (context, index) {
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedIndex = index),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Color(0xFFFF80AB),
+                        borderRadius: BorderRadius.circular(16),
+                        border: _selectedIndex == index
+                            ? Border.all(color: Colors.white, width: 3)
+                            : null,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              // ◀ 左ボタン
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        if (_selectedIndex > 0) {
+                          _selectedIndex--;
+                        }
+                      });
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Color(0xFFFF80AB),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.chevron_left,
+                        color: Color(0xFF1A237E),
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // ▶ 右ボタン
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        if (_selectedIndex < badges.length - 1) {
+                          _selectedIndex++;
+                        }
+                      });
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Color(0xFFFF80AB),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.chevron_right,
+                        color: Color(0xFF1A237E),
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
