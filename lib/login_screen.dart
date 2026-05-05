@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'accont_screen.dart';
+import 'ranking_screen.dart';
 
 class AppColors {
   static const navy = Color(0xFF00245A);
@@ -11,108 +12,125 @@ class AppColors {
   static const palePurple = Color(0xFFD5CFE2);
 }
 
-class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key});
-
-  void showNoInternetDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.6),
-      builder: (_) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
-            decoration: BoxDecoration(
-              color: AppColors.middleBlue,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: AppColors.lightBlue,
-                width: 5,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'No Internet connection',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.palePurple,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 22),
-                const Icon(
-                  Icons.public_off_rounded,
-                  color: AppColors.hotPink,
-                  size: 82,
-                ),
-                const SizedBox(height: 22),
-                const Text(
-                  'Please verify your Internet\nconnection then retry',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    height: 1.25,
-                  ),
-                ),
-                const SizedBox(height: 26),
-                PinkButton(
-                  text: 'Retry',
-                  height: 60,
-                  onTap: () {
-                    Navigator.pop(context);
-                  },
-                ),
-              ],
+void showNoInternetDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    barrierColor: Colors.black.withOpacity(0.62),
+    builder: (_) {
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
+          decoration: BoxDecoration(
+            color: AppColors.middleBlue,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: AppColors.lightBlue,
+              width: 5,
             ),
           ),
-        );
-      },
-    );
-  }
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'No Internet connection',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.palePurple,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Icon(
+                Icons.public_off_rounded,
+                color: AppColors.hotPink,
+                size: 82,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Please verify your Internet\nconnection then retry',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: 24),
+              PinkButton(
+                text: 'Retry',
+                height: 58,
+                onTap: () {
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class LoginScreen extends StatelessWidget {
+  const LoginScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return AuthScaffold(
       child: Column(
         children: [
-          const SizedBox(height: 48),
-          const AppLogo(size: 190),
-          const SizedBox(height: 24),
+          const SizedBox(height: 10),
+
+          const AppLogo(size: 135),
+
+          const SizedBox(height: 10),
+
           const Text(
             'Log in',
             style: TextStyle(
               color: AppColors.pink,
-              fontSize: 54,
+              fontSize: 48,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 68),
+
+          const SizedBox(height: 34),
+
           const AuthInput(
             label: 'Email',
             hint: 'Please enter your email',
             icon: Icons.mail_outline_rounded,
           ),
-          const SizedBox(height: 34),
+
+          const SizedBox(height: 16),
+
           const AuthInput(
             label: 'Password',
             hint: 'Please enter your password',
             icon: Icons.lock_outline_rounded,
             obscure: true,
           ),
-          const SizedBox(height: 105),
+
+          const SizedBox(height: 44),
+
           PinkButton(
-            text: 'Sign up',
+            text: 'Log in',
+            height: 70,
             onTap: () {
-              showNoInternetDialog(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const RankingScreen(),
+                ),
+              );
             },
           ),
-          const SizedBox(height: 24),
+
+          const SizedBox(height: 14),
+
           Wrap(
             alignment: WrapAlignment.center,
             children: [
@@ -120,7 +138,7 @@ class LoginScreen extends StatelessWidget {
                 'You don’t have account ? ',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -137,14 +155,13 @@ class LoginScreen extends StatelessWidget {
                   'Create account',
                   style: TextStyle(
                     color: AppColors.hotPink,
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 50),
         ],
       ),
     );
@@ -162,20 +179,19 @@ class AuthScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: AppColors.navy,
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: 430,
-          ),
+          constraints: const BoxConstraints(maxWidth: 430),
           child: Stack(
             children: [
               Positioned(
-                left: -120,
-                right: -120,
-                bottom: -210,
+                left: -150,
+                right: -150,
+                bottom: -260,
                 child: Container(
-                  height: 510,
+                  height: 520,
                   decoration: const BoxDecoration(
                     color: AppColors.lightBlue,
                     shape: BoxShape.circle,
@@ -187,7 +203,7 @@ class AuthScaffold extends StatelessWidget {
                 right: -90,
                 bottom: 150,
                 child: Container(
-                  height: 310,
+                  height: 300,
                   decoration: const BoxDecoration(
                     color: AppColors.middleBlue,
                     shape: BoxShape.circle,
@@ -195,10 +211,18 @@ class AuthScaffold extends StatelessWidget {
                 ),
               ),
               SafeArea(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 30),
-                    child: child,
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.topCenter,
+                    child: SizedBox(
+                      width: 390,
+                      height: 780,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 30),
+                        child: child,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -230,21 +254,21 @@ class AuthInput extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 18, bottom: 5),
+          padding: const EdgeInsets.only(left: 14, bottom: 4),
           child: Text(
             label,
             style: const TextStyle(
               color: AppColors.pink,
-              fontSize: 28,
+              fontSize: 25,
               fontWeight: FontWeight.w900,
             ),
           ),
         ),
         Container(
-          height: 78,
+          height: 66,
           decoration: BoxDecoration(
             color: AppColors.whitePink,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: AppColors.palePurple,
               width: 5,
@@ -254,26 +278,26 @@ class AuthInput extends StatelessWidget {
             obscureText: obscure,
             style: const TextStyle(
               color: AppColors.navy,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
             ),
             decoration: InputDecoration(
               border: InputBorder.none,
               prefixIcon: Padding(
-                padding: const EdgeInsets.only(left: 16, right: 10),
+                padding: const EdgeInsets.only(left: 14, right: 8),
                 child: Icon(
                   icon,
                   color: AppColors.palePurple,
-                  size: 42,
+                  size: 36,
                 ),
               ),
               prefixIconConstraints: const BoxConstraints(
-                minWidth: 86,
+                minWidth: 70,
               ),
               hintText: hint,
               hintStyle: const TextStyle(
                 color: AppColors.palePurple,
-                fontSize: 22,
+                fontSize: 19,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -293,7 +317,7 @@ class PinkButton extends StatelessWidget {
     super.key,
     required this.text,
     required this.onTap,
-    this.height = 82,
+    this.height = 70,
   });
 
   @override
@@ -323,7 +347,7 @@ class PinkButton extends StatelessWidget {
             text,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 28,
+              fontSize: 27,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -343,159 +367,11 @@ class AppLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(size, size),
-      painter: LogoPainter(),
+    return Image.asset(
+      'assets/badges/image.png',
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
     );
   }
-}
-
-class LogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final pinkStroke = Paint()
-      ..color = AppColors.hotPink
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.075
-      ..strokeCap = StrokeCap.round;
-
-    final pinkFill = Paint()
-      ..color = AppColors.pink
-      ..style = PaintingStyle.fill;
-
-    final whiteFill = Paint()
-      ..color = AppColors.whitePink
-      ..style = PaintingStyle.fill;
-
-    final grayFill = Paint()
-      ..color = AppColors.palePurple
-      ..style = PaintingStyle.fill;
-
-    final navyStroke = Paint()
-      ..color = AppColors.navy
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.018
-      ..strokeCap = StrokeCap.round;
-
-    final center = Offset(size.width / 2, size.height / 2);
-
-    canvas.drawArc(
-      Rect.fromCircle(
-        center: center,
-        radius: size.width * 0.42,
-      ),
-      2.0,
-      4.75,
-      false,
-      pinkStroke,
-    );
-
-    canvas.drawCircle(
-      Offset(size.width * 0.76, size.height * 0.18),
-      size.width * 0.07,
-      pinkFill,
-    );
-
-    final leftHill = Path()
-      ..moveTo(size.width * 0.12, size.height * 0.68)
-      ..quadraticBezierTo(
-        size.width * 0.30,
-        size.height * 0.55,
-        size.width * 0.54,
-        size.height * 0.72,
-      )
-      ..lineTo(size.width * 0.12, size.height * 0.72)
-      ..close();
-
-    final rightHill = Path()
-      ..moveTo(size.width * 0.38, size.height * 0.72)
-      ..quadraticBezierTo(
-        size.width * 0.62,
-        size.height * 0.55,
-        size.width * 0.88,
-        size.height * 0.70,
-      )
-      ..lineTo(size.width * 0.88, size.height * 0.72)
-      ..close();
-
-    canvas.drawPath(leftHill, whiteFill);
-    canvas.drawPath(rightHill, grayFill);
-
-    final stem = Path()
-      ..moveTo(size.width * 0.47, size.height * 0.70)
-      ..cubicTo(
-        size.width * 0.48,
-        size.height * 0.52,
-        size.width * 0.56,
-        size.height * 0.40,
-        size.width * 0.72,
-        size.height * 0.29,
-      );
-
-    canvas.drawPath(
-      stem,
-      Paint()
-        ..color = AppColors.pink
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = size.width * 0.04
-        ..strokeCap = StrokeCap.round,
-    );
-
-    final bigLeaf = Path()
-      ..moveTo(size.width * 0.48, size.height * 0.53)
-      ..cubicTo(
-        size.width * 0.56,
-        size.height * 0.25,
-        size.width * 0.82,
-        size.height * 0.25,
-        size.width * 0.76,
-        size.height * 0.40,
-      )
-      ..cubicTo(
-        size.width * 0.69,
-        size.height * 0.60,
-        size.width * 0.53,
-        size.height * 0.56,
-        size.width * 0.48,
-        size.height * 0.53,
-      );
-
-    canvas.drawPath(bigLeaf, pinkFill);
-
-    final smallLeaf = Path()
-      ..moveTo(size.width * 0.40, size.height * 0.52)
-      ..cubicTo(
-        size.width * 0.22,
-        size.height * 0.47,
-        size.width * 0.24,
-        size.height * 0.35,
-        size.width * 0.27,
-        size.height * 0.36,
-      )
-      ..cubicTo(
-        size.width * 0.42,
-        size.height * 0.37,
-        size.width * 0.46,
-        size.height * 0.48,
-        size.width * 0.40,
-        size.height * 0.52,
-      );
-
-    canvas.drawPath(smallLeaf, pinkFill);
-
-    canvas.drawLine(
-      Offset(size.width * 0.58, size.height * 0.48),
-      Offset(size.width * 0.72, size.height * 0.34),
-      navyStroke,
-    );
-
-    canvas.drawLine(
-      Offset(size.width * 0.39, size.height * 0.48),
-      Offset(size.width * 0.30, size.height * 0.42),
-      navyStroke,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

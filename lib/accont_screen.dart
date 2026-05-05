@@ -9,55 +9,56 @@ class AccountScreen extends StatelessWidget {
     return AuthScaffold(
       child: Column(
         children: [
-          const SizedBox(height: 40),
-          const AppLogo(size: 180),
-          const SizedBox(height: 26),
+          const SizedBox(height: 8),
+          const AppLogo(size: 120),
+          const SizedBox(height: 8),
           const Text(
-            'Create  Account',
+            'Create Account',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppColors.pink,
-              fontSize: 43,
+              fontSize: 37,
               fontWeight: FontWeight.w900,
               letterSpacing: 1,
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 10),
           const AuthInput(
             label: 'Email',
             hint: 'Please enter your email',
             icon: Icons.mail_outline_rounded,
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 12),
           const AuthInput(
             label: 'Password',
             hint: 'Please enter your password',
             icon: Icons.lock_outline_rounded,
             obscure: true,
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 16),
           Container(
-            height: 9,
-            margin: const EdgeInsets.symmetric(horizontal: 38),
+            height: 8,
+            margin: const EdgeInsets.symmetric(horizontal: 36),
             decoration: BoxDecoration(
               color: AppColors.hotPink,
               borderRadius: BorderRadius.circular(99),
             ),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 12),
           const AuthInput(
             label: 'Nickname',
             hint: 'Please enter your nickname',
             icon: Icons.account_circle_outlined,
           ),
-          const SizedBox(height: 55),
+          const SizedBox(height: 28),
           PinkButton(
             text: 'Sign up',
+            height: 70,
             onTap: () {
-              Navigator.pop(context);
+              showNoInternetDialog(context);
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
           Wrap(
             alignment: WrapAlignment.center,
             children: [
@@ -65,7 +66,7 @@ class AccountScreen extends StatelessWidget {
                 'Already have an account ? ',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -77,14 +78,13 @@ class AccountScreen extends StatelessWidget {
                   'Log in',
                   style: TextStyle(
                     color: AppColors.hotPink,
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 45),
         ],
       ),
     );
