@@ -40,21 +40,30 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
     }
   }
 
+  /// Couleur du texte de la rareté.
+  /// Ordre du plus rare au moins rare : SECRET > UR > SSR > SR > RR
   Color _rarityColor(String rarity) {
     switch (rarity) {
-      case 'Common':
-        return const Color(0xFF9E9E9E);
-      case 'Rare':
-        return const Color(0xFF1565C0);
-      case 'Epic':
-        return const Color(0xFF6A1B9A);
-      case 'Legendary':
-        return const Color(0xFFE65100);
+      case 'SECRET':
+        return Colors.black;
+      case 'UR':
+        return const Color(0xFFE53935); // rouge
       case 'SSR':
-        return const Color(0xFFFFD700);
+        return const Color(0xFFFFD700); // jaune doré
+      case 'SR':
+        return const Color(0xFF9C27B0); // violet
+      case 'RR':
+        return const Color(0xFF2196F3); // bleu
       default:
         return Colors.grey;
     }
+  }
+
+  /// Couleur de l'aura (glow) — identique à la couleur de base sauf pour
+  /// SECRET où on contraste en blanc pour démarquer le noir sur fond sombre.
+  Color _rarityAura(String rarity) {
+    if (rarity == 'SECRET') return Colors.white;
+    return _rarityColor(rarity);
   }
 
   @override
@@ -168,7 +177,10 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
                         color: color,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        shadows: [Shadow(color: color, blurRadius: 8)],
+                        shadows: [
+                          Shadow(color: _rarityAura(rarity), blurRadius: 12),
+                          Shadow(color: _rarityAura(rarity), blurRadius: 6),
+                        ],
                       ),
                     ),
                     if (badge['quantity'] != null && badge['quantity'] > 1)
@@ -182,10 +194,17 @@ class _BadgeListScreenState extends State<BadgeListScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            badge['description'] ?? '',
-            style: const TextStyle(color: Colors.white70, fontSize: 13),
-            textAlign: TextAlign.center,
+          SizedBox(
+            height: 56,
+            child: Center(
+              child: Text(
+                badge['description'] ?? '',
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ),
           if (badge['obtention'] != null) ...[
             const SizedBox(height: 8),

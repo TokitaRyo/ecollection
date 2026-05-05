@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:pedometer/pedometer.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'api_service.dart';
 import 'user_session.dart';
 
@@ -67,17 +69,42 @@ class TaskTracker {
     _maxValue = progress;
     _stepCountAtStart = null;
 
+    // Garde l'écran allumé pendant la quête
+    try {
+      await WakelockPlus.enable();
+    } catch (e) {
+      debugPrint('Wakelock enable error: $e');
+    }
+
     // Stream GPS commun à toutes les quêtes :
     //  - surveille la vitesse (anti-triche)
     //  - alimente la progression pour altitude / distance
+    //  - sur Android, utilise un foreground service pour continuer en background
     final locOk = await _request(Permission.locationWhenInUse);
     if (locOk) {
-      _positionSub = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 5,
-        ),
-      ).listen(_handlePosition, onError: (e) => debugPrint('Geolocator error: $e'));
+      // Tente d'obtenir aussi la permission "Always" pour le background.
+      // Si refusé, le foreground service marche quand même tant que la
+      // notification reste affichée.
+      await _request(Permission.locationAlways);
+
+      final settings = Platform.isAndroid
+          ? AndroidSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 5,
+              foregroundNotificationConfig: const ForegroundNotificationConfig(
+                notificationTitle: 'Ecollection',
+                notificationText: 'Suivi de votre quête en cours',
+                enableWakeLock: true,
+                setOngoing: true,
+              ),
+            )
+          : const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 5,
+            );
+
+      _positionSub = Geolocator.getPositionStream(locationSettings: settings)
+          .listen(_handlePosition, onError: (e) => debugPrint('Geolocator error: $e'));
     } else {
       debugPrint('TaskTracker: LOCATION refusée');
     }
@@ -111,6 +138,11 @@ class TaskTracker {
     _hasPending = false;
     _stepCountAtStart = null;
     _speedViolations = 0;
+    try {
+      await WakelockPlus.disable();
+    } catch (e) {
+      debugPrint('Wakelock disable error: $e');
+    }
   }
 
   // ============================================

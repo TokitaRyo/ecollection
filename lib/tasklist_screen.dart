@@ -18,6 +18,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
   bool _loading = true;
 
   Timer? _ticker;
+  Timer? _refreshTimer;
   DateTime? _deadline;
 
   @override
@@ -27,6 +28,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
     TaskTracker.onTaskAutoCancelled = _onTaskAutoCancelled;
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted && _activeTasks.isNotEmpty) setState(() {});
+    });
+    _refreshTimer = Timer.periodic(const Duration(minutes: 10), (_) {
+      _loadData(silent: true);
     });
     _loadData();
   }
@@ -48,6 +52,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
   @override
   void dispose() {
     _ticker?.cancel();
+    _refreshTimer?.cancel();
     TaskTracker.onTaskCompleted = null;
     TaskTracker.onTaskAutoCancelled = null;
     super.dispose();
@@ -72,9 +77,16 @@ class _TaskListScreenState extends State<TaskListScreen> {
     return '$h : $m : $s';
   }
 
-  void _onTaskCompleted() {
+  Future<void> _onTaskCompleted() async {
     if (!mounted) return;
-    _loadData();
+    // Le backend a crédité le score : on recharge le profil pour
+    // mettre à jour la ScoreBar.
+    try {
+      await UserSession().loadProfile();
+    } catch (_) {}
+    if (!mounted) return;
+    await _loadData();
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Mission complétée !'),
@@ -83,9 +95,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadData({bool silent = false}) async {
     if (!mounted) return;
-    setState(() => _loading = true);
+    if (!silent) setState(() => _loading = true);
     try {
       final results = await Future.wait([
         ApiService.getTasks(),
@@ -99,8 +111,12 @@ class _TaskListScreenState extends State<TaskListScreen> {
       });
 
       if (_activeTasks.isNotEmpty) {
-        final remaining = _parseDuration(_activeTasks.first['timeRemaining']);
-        _deadline = remaining != null ? DateTime.now().add(remaining) : null;
+        // Ne réinitialise pas le _deadline si on a déjà un timer local
+        // (sinon le compteur ferait un saut visible à chaque refresh)
+        if (_deadline == null) {
+          final remaining = _parseDuration(_activeTasks.first['timeRemaining']);
+          _deadline = remaining != null ? DateTime.now().add(remaining) : null;
+        }
         await TaskTracker.start(_activeTasks.first);
       } else {
         _deadline = null;
@@ -109,9 +125,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -481,7 +499,27 @@ class _TaskListScreenState extends State<TaskListScreen> {
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.25),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.white70, size: 16),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Garde l'application ouverte pour que le suivi continue.",
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'services/user_session.dart';
@@ -12,116 +14,74 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  Future<void> _refreshProfile() async {
-    try {
-      await UserSession().loadProfile();
-      if (mounted) setState(() {});
-    } catch (_) {}
-  }
+  bool _settingHome = false;
 
   Future<void> _defineHomePosition() async {
-    final latController = TextEditingController();
-    final lonController = TextEditingController();
+    if (_settingHome) return;
+    setState(() => _settingHome = true);
 
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: AppColors.indigoDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Define home position',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: latController,
-                keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Latitude',
-                  labelStyle: TextStyle(color: Colors.white70),
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white24),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: lonController,
-                keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Longitude',
-                  labelStyle: TextStyle(color: Colors.white70),
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white24),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white24,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: const Text('Cancel', style: TextStyle(color: Colors.white)),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.pinkAccent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: const Text(
-                      'Confirm',
-                      style: TextStyle(color: AppColors.indigo, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+    try {
+      // Demande la permission GPS
+      final status = await Permission.locationWhenInUse.request();
+      if (!status.isGranted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Permission de localisation refusée'),
+            backgroundColor: Colors.red,
           ),
-        ),
-      ),
-    );
-
-    if (result == true) {
-      final lat = double.tryParse(latController.text);
-      final lon = double.tryParse(lonController.text);
-      if (lat != null && lon != null) {
-        try {
-          await ApiService.updateHomePosition(latitude: lat, longitude: lon);
-          await _refreshProfile();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Home position updated'), backgroundColor: Colors.green),
-            );
-          }
-        } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-            );
-          }
-        }
+        );
+        return;
       }
+
+      // Vérifie que le GPS est activé
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Activez le GPS pour définir votre position'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Récupère la position courante
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+
+      // Sauvegarde côté serveur
+      await ApiService.updateHomePosition(
+        latitude: pos.latitude,
+        longitude: pos.longitude,
+      );
+
+      // Recharge le profil pour que session.hasHome devienne true
+      await UserSession().loadProfile();
+
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Position du domicile enregistrée'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur : $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _settingHome = false);
     }
   }
 
@@ -199,7 +159,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _buildInfoRow('Inscription', _formatDate(session.dateCreation)),
           _buildInfoRow('Home position', session.hasHome ? 'Defined' : 'Not defined'),
           const SizedBox(height: 24),
-          _buildButton('Define home position', _defineHomePosition),
+          _buildButton(
+            _settingHome ? 'Locating...' : 'Define home position',
+            _settingHome ? () {} : _defineHomePosition,
+          ),
           const SizedBox(height: 12),
           _buildButton('Disconnect', _logout,
               color: AppColors.pinkAccent.withOpacity(0.7)),
